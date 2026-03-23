@@ -60,9 +60,10 @@ def run_episode(env: XAUUSDEnv, agent: DQNAgent,
 
         if train:
             agent.remember(state, action, reward, next_state, done)
-            loss = agent.learn()
-            if loss:
-                losses.append(loss)
+            if steps % config.LEARN_EVERY == 0:
+                loss = agent.learn()
+                if loss:
+                    losses.append(loss)
 
         state         = next_state
         total_reward += reward

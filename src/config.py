@@ -17,7 +17,7 @@ MAX_OPEN_TRADES = 1      # Maximum simultaneous positions
 # ── Agent / DQN ───────────────────────────────────────────────────────────────
 STATE_DIM = WINDOW_SIZE * 10  # features per time-step × window
 ACTION_DIM = 3                # 0=HOLD, 1=BUY, 2=SELL
-HIDDEN_DIM = 256
+HIDDEN_DIM = 128
 
 LEARNING_RATE = 1e-4
 GAMMA = 0.99              # Discount factor
@@ -29,6 +29,7 @@ REPLAY_BUFFER_SIZE = 50_000
 BATCH_SIZE = 64
 TARGET_UPDATE_FREQ = 10   # Update target network every N episodes
 MIN_REPLAY_SIZE = 1_000   # Minimum experiences before training starts
+LEARN_EVERY = 4           # Run a gradient update every N environment steps
 
 # ── Training ──────────────────────────────────────────────────────────────────
 NUM_EPISODES = 500

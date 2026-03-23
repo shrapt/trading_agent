@@ -10,6 +10,8 @@ os.chdir('/home/user/trading_agent')
 import logging
 import numpy as np
 import time
+import torch
+torch.set_num_threads(4)
 
 logging.basicConfig(level=logging.INFO,
     format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
@@ -25,6 +27,8 @@ cfg.SAVE_FREQ         = 30
 cfg.MIN_REPLAY_SIZE   = 200
 cfg.BATCH_SIZE        = 32
 cfg.REPLAY_BUFFER_SIZE= 5_000
+cfg.HIDDEN_DIM        = 64
+cfg.LEARN_EVERY       = 16
 cfg.DATA_CACHE_PATH   = "data/quick_cache.csv"
 
 from src.data import fetch_data, _synthetic_data, add_indicators
