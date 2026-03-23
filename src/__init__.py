@@ -1,0 +1,1 @@
+# XAUUSD Trading Agent package
