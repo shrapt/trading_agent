@@ -27,3 +27,19 @@
 09:38:03 INFO     train_adv: Ep    6/500 | ε=0.9645 | train[r= -0.83 pnl=   201.5 wr=0.36 t=185 TP=63 SL=119] | test_pnl=     nan | loss= 0.0991 | 14.6s
 09:38:18 INFO     train_adv: Ep    7/500 | ε=0.9587 | train[r=-53.55 pnl= -4042.3 wr=0.30 t=329 TP=100 SL=227] | test_pnl=     nan | loss= 0.1287 | 15.8s
 09:38:34 INFO     train_adv: Ep    8/500 | ε=0.9530 | train[r=  3.26 pnl=   733.1 wr=0.37 t=141 TP=51 SL=87] | test_pnl=     nan | loss= 0.1190 | 15.3s
+09:38:50 INFO     train_adv: Ep    9/500 | ε=0.9473 | train[r=  4.45 pnl=   889.5 wr=0.38 t= 93 TP=34 SL=58] | test_pnl=     nan | loss= 0.1436 | 16.7s
+09:39:06 INFO     train_adv: Ep   10/500 | ε=0.9416 | train[r=-57.74 pnl= -4285.6 wr=0.29 t=299 TP=85 SL=212] | test_pnl=     nan | loss= 0.1026 | 15.5s
+09:39:23 INFO     train_adv: Ep   11/500 | ε=0.9359 | train[r=-16.22 pnl= -1182.1 wr=0.33 t=177 TP=58 SL=119] | test_pnl=     nan | loss= 0.1007 | 17.0s
+09:39:41 INFO     train_adv: Ep   12/500 | ε=0.9303 | train[r=-13.56 pnl=  -946.8 wr=0.31 t= 98 TP=29 SL=67] | test_pnl=     nan | loss= 0.0852 | 18.2s
+09:39:59 INFO     train_adv: Ep   13/500 | ε=0.9247 | train[r=-41.46 pnl= -3292.9 wr=0.30 t=353 TP=105 SL=246] | test_pnl=     nan | loss= 0.1029 | 18.0s
+09:40:17 INFO     train_adv: Ep   14/500 | ε=0.9192 | train[r= -4.25 pnl=  -180.5 wr=0.34 t=216 TP=73 SL=143] | test_pnl=     nan | loss= 0.0940 | 17.9s
+09:40:35 INFO     train_adv: Ep   15/500 | ε=0.9137 | train[r=-57.83 pnl= -4406.0 wr=0.30 t=416 TP=123 SL=291] | test_pnl=     nan | loss= 0.1136 | 18.3s
+09:40:54 INFO     train_adv: Ep   16/500 | ε=0.9082 | train[r= -6.95 pnl=  -350.7 wr=0.35 t=133 TP=45 SL=86] | test_pnl=     nan | loss= 0.1028 | 19.1s
+09:41:14 INFO     train_adv: Ep   17/500 | ε=0.9028 | train[r= 35.08 pnl=  4545.4 wr=0.43 t=126 TP=54 SL=72] | test_pnl=     nan | loss= 0.1147 | 19.2s
+09:41:34 INFO     train_adv: Ep   18/500 | ε=0.8973 | train[r=-24.46 pnl= -1975.5 wr=0.32 t=306 TP=95 SL=208] | test_pnl=     nan | loss= 0.1118 | 20.6s
+09:41:54 INFO     train_adv: Ep   19/500 | ε=0.8920 | train[r=-35.16 pnl= -2752.5 wr=0.27 t=191 TP=52 SL=139] | test_pnl=     nan | loss= 0.1122 | 20.1s
+09:42:14 INFO     train_adv: Ep   20/500 | ε=0.8866 | train[r=-26.58 pnl= -2181.2 wr=0.31 t=291 TP=89 SL=201] | test_pnl=     nan | loss= 0.0974 | 19.6s
+09:42:34 INFO     train_adv: Ep   21/500 | ε=0.8813 | train[r=-21.36 pnl= -1752.3 wr=0.34 t=289 TP=96 SL=192] | test_pnl=     nan | loss= 0.0900 | 20.4s
+09:42:55 INFO     train_adv: Ep   22/500 | ε=0.8760 | train[r=-55.51 pnl= -4134.6 wr=0.28 t=277 TP=76 SL=199] | test_pnl=     nan | loss= 0.0955 | 20.4s
+09:43:15 INFO     train_adv: Ep   23/500 | ε=0.8707 | train[r=  0.39 pnl=   387.8 wr=0.37 t=201 TP=73 SL=126] | test_pnl=     nan | loss= 0.1057 | 20.6s
+09:43:36 INFO     train_adv: Ep   24/500 | ε=0.8655 | train[r=-16.96 pnl= -1198.1 wr=0.33 t=160 TP=51 SL=107] | test_pnl=     nan | loss= 0.1045 | 20.8s
