@@ -28,20 +28,30 @@ cfg.MIN_REPLAY_SIZE   = 200
 cfg.BATCH_SIZE        = 32
 cfg.REPLAY_BUFFER_SIZE= 5_000
 cfg.HIDDEN_DIM        = 64
-cfg.LEARN_EVERY       = 16
+cfg.LEARN_EVERY       = 32
 cfg.DATA_CACHE_PATH   = "data/quick_cache.csv"
 
-from src.data import fetch_data, _synthetic_data, add_indicators
+from src.data import load_historical_csv, _synthetic_data, add_indicators
 from src.environment import XAUUSDEnv
 from src.agent import DQNAgent
 from src.train import run_episode, evaluate
 
 # ── Data ──────────────────────────────────────────────────────────────────────
-logger.info("Generating 60-day synthetic XAUUSD data …")
-df = _synthetic_data(days=60)
-df = add_indicators(df)
-df.dropna(inplace=True)
-df = df.reset_index(drop=True)
+hist_path = cfg.HISTORICAL_DATA_PATH
+if os.path.exists(hist_path):
+    logger.info("Loading real XAUUSD data from '%s' …", hist_path)
+    df = load_historical_csv(hist_path)
+    df = add_indicators(df)
+    df.dropna(inplace=True)
+    # Use the most recent 3000 candles (~125 days) for speed
+    df = df.iloc[-3000:].reset_index(drop=True)
+    logger.info("Using %d candles (most recent)", len(df))
+else:
+    logger.info("Historical file not found, using synthetic data …")
+    df = _synthetic_data(days=60)
+    df = add_indicators(df)
+    df.dropna(inplace=True)
+    df = df.reset_index(drop=True)
 logger.info("Dataset: %d candles", len(df))
 
 split = int(len(df) * 0.80)

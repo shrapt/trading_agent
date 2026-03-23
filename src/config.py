@@ -44,3 +44,4 @@ LOG_DIR = "logs"
 CHECKPOINT_PATH = f"{MODEL_DIR}/xauusd_dqn.pth"
 BEST_MODEL_PATH = f"{MODEL_DIR}/xauusd_dqn_best.pth"
 DATA_CACHE_PATH = f"{DATA_DIR}/xauusd_cache.csv"
+HISTORICAL_DATA_PATH = "historical data"  # real XAUUSD 1h CSV (semicolon-delimited)

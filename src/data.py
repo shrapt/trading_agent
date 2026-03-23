@@ -65,13 +65,41 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def load_historical_csv(path: str) -> pd.DataFrame:
+    """
+    Load real XAUUSD 1-hour data from a semicolon-delimited CSV file.
+    Expected columns: Date;Open;High;Low;Close;Volume
+    Date format: 2004.06.11 07:00
+    """
+    df = pd.read_csv(
+        path,
+        sep=";",
+        parse_dates=["Date"],
+        date_format="%Y.%m.%d %H:%M",
+    )
+    df.columns = [c.lower() for c in df.columns]
+    df.rename(columns={"date": "datetime"}, inplace=True)
+    df.set_index("datetime", inplace=True)
+    df = df[["open", "high", "low", "close", "volume"]].astype(float)
+    df.sort_index(inplace=True)
+    logger.info("Loaded %d candles from %s", len(df), path)
+    return df
+
+
 def fetch_data(symbol: str, interval: str, lookback_days: int,
                cache_path: str) -> pd.DataFrame:
     """
-    Download OHLCV data via yfinance with local CSV cache.
-    Falls back to synthetic data generation if yfinance is unavailable.
+    Load OHLCV data. Priority:
+      1. Real historical CSV (HISTORICAL_DATA_PATH in config)
+      2. Local CSV cache
+      3. yfinance download
+      4. Synthetic fallback
     """
-    if os.path.exists(cache_path):
+    from src import config as _cfg
+    hist_path = getattr(_cfg, "HISTORICAL_DATA_PATH", None)
+    if hist_path and os.path.exists(hist_path):
+        df = load_historical_csv(hist_path)
+    elif os.path.exists(cache_path):
         logger.info("Loading cached data from %s", cache_path)
         df = pd.read_csv(cache_path, index_col=0, parse_dates=True)
     else:
