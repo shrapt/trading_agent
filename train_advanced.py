@@ -1,5 +1,5 @@
 """
-Advanced MTF DQN Training — 500 episodes
+Advanced MTF DQN Training — 2000 episodes
 ==========================================
 Trains the redesigned agent with:
   • Limit / stop orders only  (no market orders)
@@ -8,14 +8,21 @@ Trains the redesigned agent with:
   • 1% risk-per-trade position sizing
   • Multi-timeframe state: 1D (trend) + 4H (direction) + 1H (entry)
 
+Data split (date-based, no leakage)
+  • Train   : 2004 – 2022  (all bars before 2023-01-01)
+  • Validate: 2023 – 2025  (completely unseen)
+
+Early stopping
+  • Stops if validation PnL does not improve for 100 consecutive episodes.
+
 Each episode randomly samples a contiguous ADV_EPISODE_STEPS window from
 the training portion of the 1H dataset, giving diverse market regimes.
 
 Usage
 -----
-  python train_advanced.py                  # fresh 500-episode run
-  python train_advanced.py --episodes 200   # shorter run
-  python train_advanced.py --resume         # continue from checkpoint
+  python train_advanced.py                   # fresh 2000-episode run
+  python train_advanced.py --episodes 500    # shorter run
+  python train_advanced.py --resume          # continue from checkpoint
 """
 
 import argparse
@@ -25,6 +32,7 @@ import sys
 import time
 
 import numpy as np
+import pandas as pd
 import torch
 
 torch.set_num_threads(4)
@@ -74,28 +82,45 @@ df_1d = load_tf(cfg.MTF_DATA_1D)
 logger.info("1H: %d bars | 4H: %d bars | 1D: %d bars",
             len(df_1h), len(df_4h), len(df_1d))
 
-# ── Train / test split ────────────────────────────────────────────────────────
-n_1h       = len(df_1h)
-train_end  = int(n_1h * cfg.TRAIN_SPLIT)
-test_start = train_end
+# ── Date-based train / validate split ─────────────────────────────────────────
+SPLIT_DATE = pd.Timestamp("2023-01-01")
 
-logger.info("Train pool: 1H bars 0..%d | Test: %d..%d",
-            train_end, test_start, n_1h - 1)
+train_mask = df_1h.index < SPLIT_DATE
+val_mask   = df_1h.index >= SPLIT_DATE
+
+train_end  = int(train_mask.sum())        # first bar of 2023+
+val_start  = train_end
+n_1h       = len(df_1h)
+
+logger.info("Train pool : 1H bars 0 … %d  (%s → %s)",
+            train_end - 1,
+            df_1h.index[0].date(),
+            df_1h.index[train_end - 1].date())
+logger.info("Validate   : 1H bars %d … %d  (%s → %s)",
+            val_start, n_1h - 1,
+            df_1h.index[val_start].date(),
+            df_1h.index[-1].date())
+
+if not val_mask.any():
+    raise ValueError("No validation data found after 2023-01-01. "
+                     "Check your dataset date range.")
 
 # ── Environments ──────────────────────────────────────────────────────────────
 env = AdvancedTradingEnv(df_1h, df_4h, df_1d)
 
-MIN_START   = env.min_step
-EP_LEN      = cfg.ADV_EPISODE_STEPS   # 1500
+MIN_START = env.min_step
+EP_LEN    = cfg.ADV_EPISODE_STEPS   # 1500
 
-assert train_end - MIN_START > EP_LEN, "Not enough training data."
+assert train_end - MIN_START > EP_LEN, \
+    f"Not enough training data (train_end={train_end}, EP_LEN={EP_LEN})."
 
-# ── Agent ─────────────────────────────────────────────────────────────────────
+# ── CLI args ──────────────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
-parser.add_argument("--episodes", type=int, default=500)
+parser.add_argument("--episodes", type=int, default=2000)
 parser.add_argument("--resume",   action="store_true")
 args = parser.parse_args()
 
+# ── Agent ─────────────────────────────────────────────────────────────────────
 obs_dim = env.obs_dim        # 393
 agent   = DQNAgent(state_dim=obs_dim, action_dim=ACTION_DIM)
 logger.info("Agent | state_dim=%d | action_dim=%d | device=%s",
@@ -114,7 +139,7 @@ obs = env.reset(start_step=s, max_steps=EP_LEN)
 t0  = time.time()
 steps = 0
 while True:
-    a              = agent.select_action(obs)
+    a               = agent.select_action(obs)
     obs, _, done, _ = env.step(a)
     if done:
         break
@@ -130,23 +155,30 @@ os.makedirs(cfg.LOG_DIR,   exist_ok=True)
 
 with open(cfg.ADV_LOG_PATH, "w") as f:
     f.write("ep,epsilon,train_reward,train_pnl,train_wr,train_trades,"
-            "train_tp,train_sl,test_pnl,test_wr,test_trades,"
-            "test_tp,test_sl,avg_loss,elapsed\n")
+            "train_tp,train_sl,val_pnl,val_wr,val_trades,"
+            "val_tp,val_sl,avg_loss,elapsed\n")
 
 # ── Training loop ─────────────────────────────────────────────────────────────
-best_test_pnl = float("-inf")
-rng           = np.random.default_rng()
+best_val_pnl      = float("-inf")
+last_best_ep      = agent.episode     # episode at which we last saw an improvement
+early_stop_pat    = 100               # stop if no improvement for this many episodes
+rng               = np.random.default_rng()
 
 logger.info("\n%s\n  ADVANCED MTF AGENT — %d EPISODES\n%s",
             "=" * 64, args.episodes, "=" * 64)
-logger.info("Order types : limit_buy | limit_sell | stop_buy | stop_sell")
-logger.info("SL/TP       : immutable, set at placement")
-logger.info("Risk/trade  : 1%% of balance")
-logger.info("Max orders  : %d pending + %d open simultaneously",
+logger.info("Train split  : 2004 – 2022  (%d bars)", train_end)
+logger.info("Val split    : 2023 – 2025  (%d bars)", n_1h - val_start)
+logger.info("Early stop   : patience %d episodes", early_stop_pat)
+logger.info("Order types  : limit_buy | limit_sell | stop_buy | stop_sell")
+logger.info("SL/TP        : immutable, set at placement")
+logger.info("Risk/trade   : 1%% of balance")
+logger.info("Max orders   : %d pending + %d open simultaneously",
             cfg.ADV_MAX_PENDING, cfg.ADV_MAX_OPEN)
 logger.info("%s", "=" * 64)
 
-for ep in range(1, args.episodes + 1):
+start_ep = agent.episode + 1
+
+for ep in range(start_ep, start_ep + args.episodes):
     t0 = time.time()
 
     # Random window from training pool
@@ -179,23 +211,52 @@ for ep in range(1, args.episodes + 1):
     if ep % cfg.TARGET_UPDATE_FREQ == 0:
         agent.update_target_network()
 
-    # ── Evaluation ───────────────────────────────────────────────────────────
-    test_s = {}
-    if ep % cfg.ADV_EVAL_FREQ == 0 or ep == args.episodes:
-        test_steps = (n_1h - 1) - test_start
-        obs_t = env.reset(start_step=test_start, max_steps=test_steps)
+    # ── Validation ────────────────────────────────────────────────────────────
+    val_s = {}
+    if ep % cfg.ADV_EVAL_FREQ == 0 or ep == start_ep + args.episodes - 1:
+        val_steps = (n_1h - 1) - val_start
+        obs_v = env.reset(start_step=val_start, max_steps=val_steps)
         while True:
-            a                 = agent.select_action(obs_t, greedy=True)
-            obs_t, _, done_t, _ = env.step(a)
-            if done_t:
+            a                  = agent.select_action(obs_v, greedy=True)
+            obs_v, _, done_v, _ = env.step(a)
+            if done_v:
                 break
-        test_s = env.trade_summary()
+        val_s = env.trade_summary()
 
-        if test_s.get("total_pnl", 0) > best_test_pnl:
-            best_test_pnl = test_s["total_pnl"]
+        val_pnl = val_s.get("total_pnl", float("-inf"))
+        if val_pnl > best_val_pnl:
+            best_val_pnl = val_pnl
+            last_best_ep = ep
             agent.save(cfg.ADV_BEST_MODEL_PATH)
-            logger.info("★ New best  test_pnl=$%.2f  (ep %d)",
-                        best_test_pnl, ep)
+            logger.info("★ New best  val_pnl=$%.2f  (ep %d)", best_val_pnl, ep)
+
+        # Early stopping check
+        if ep - last_best_ep >= early_stop_pat:
+            logger.info(
+                "Early stopping triggered: val PnL has not improved "
+                "for %d episodes (last best: ep %d, $%.2f).",
+                ep - last_best_ep, last_best_ep, best_val_pnl,
+            )
+            agent.save(cfg.ADV_CHECKPOINT_PATH)
+            # Log final row then break
+            elapsed  = time.time() - t0
+            avg_loss = float(np.mean(losses)) if losses else float("nan")
+            with open(cfg.ADV_LOG_PATH, "a") as f:
+                f.write(
+                    f"{ep},{agent.epsilon:.5f},{total_reward:.4f},"
+                    f"{train_s.get('total_pnl',0):.2f},"
+                    f"{train_s.get('win_rate',0):.4f},"
+                    f"{train_s.get('total_trades',0)},"
+                    f"{train_s.get('tp_count',0)},"
+                    f"{train_s.get('sl_count',0)},"
+                    f"{val_s.get('total_pnl','')},"
+                    f"{val_s.get('win_rate','')},"
+                    f"{val_s.get('total_trades','')},"
+                    f"{val_s.get('tp_count','')},"
+                    f"{val_s.get('sl_count','')},"
+                    f"{avg_loss:.6f},{elapsed:.1f}\n"
+                )
+            break
 
     if ep % cfg.ADV_SAVE_FREQ == 0:
         agent.save(cfg.ADV_CHECKPOINT_PATH)
@@ -207,8 +268,8 @@ for ep in range(1, args.episodes + 1):
     logger.info(
         "Ep %4d/%d | ε=%.4f | "
         "train[r=%6.2f pnl=%8.1f wr=%.2f t=%3d TP=%2d SL=%2d] | "
-        "test_pnl=%8.1f | loss=%7.4f | %.1fs",
-        ep, args.episodes,
+        "val_pnl=%8.1f | loss=%7.4f | %.1fs",
+        ep, start_ep + args.episodes - 1,
         agent.epsilon,
         total_reward,
         train_s.get("total_pnl",    0),
@@ -216,7 +277,7 @@ for ep in range(1, args.episodes + 1):
         train_s.get("total_trades", 0),
         train_s.get("tp_count",     0),
         train_s.get("sl_count",     0),
-        test_s.get("total_pnl", float("nan")),
+        val_s.get("total_pnl", float("nan")),
         avg_loss,
         elapsed,
     )
@@ -229,11 +290,11 @@ for ep in range(1, args.episodes + 1):
             f"{train_s.get('total_trades',0)},"
             f"{train_s.get('tp_count',0)},"
             f"{train_s.get('sl_count',0)},"
-            f"{test_s.get('total_pnl','')},"
-            f"{test_s.get('win_rate','')},"
-            f"{test_s.get('total_trades','')},"
-            f"{test_s.get('tp_count','')},"
-            f"{test_s.get('sl_count','')},"
+            f"{val_s.get('total_pnl','')},"
+            f"{val_s.get('win_rate','')},"
+            f"{val_s.get('total_trades','')},"
+            f"{val_s.get('tp_count','')},"
+            f"{val_s.get('sl_count','')},"
             f"{avg_loss:.6f},{elapsed:.1f}\n"
         )
 
@@ -243,11 +304,19 @@ agent.save(cfg.ADV_CHECKPOINT_PATH)
 print("\n" + "=" * 64)
 print("  ADVANCED MTF TRAINING COMPLETE")
 print("=" * 64)
-print(f"  Episodes         : {args.episodes}")
+print(f"  Episodes run     : {ep - start_ep + 1}")
 print(f"  Gradient steps   : {agent.train_steps:,}")
 print(f"  Final epsilon    : {agent.epsilon:.4f}")
-print(f"  Best test PnL    : ${best_test_pnl:+.2f}")
+print(f"  Best val PnL     : ${best_val_pnl:+.2f}")
 print(f"  Checkpoint saved : {cfg.ADV_CHECKPOINT_PATH}")
 print(f"  Best model saved : {cfg.ADV_BEST_MODEL_PATH}")
 print(f"  Training log     : {cfg.ADV_LOG_PATH}")
 print("=" * 64)
+
+# ── Run backtest report on the best model ─────────────────────────────────────
+print("\nRunning backtest report on best model …")
+try:
+    from backtest_report import run_backtest
+    run_backtest(cfg.ADV_BEST_MODEL_PATH)
+except Exception as exc:
+    logger.warning("Backtest report failed: %s", exc)
