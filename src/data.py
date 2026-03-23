@@ -170,6 +170,42 @@ def _synthetic_data(days: int) -> pd.DataFrame:
 FEATURE_COLS = ["open", "high", "low", "close", "volume",
                 "rsi_14", "macd", "macd_signal", "bb_upper", "bb_lower", "atr_14"]
 
+# ──────────────────────────────────────────────────────────────────────────────
+# V2 feature engineering  (minimal hand-crafted hints for CNN-LSTM agent)
+# ──────────────────────────────────────────────────────────────────────────────
+
+V2_FEAT_COLS = ["open", "high", "low", "close", "volume",
+                "atr_14", "price_pos_50", "vol_regime"]
+
+
+def add_v2_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add two minimal hint columns on top of the existing atr_14:
+
+    price_pos_50
+        Where the current close sits within the rolling 50-bar high/low
+        range, expressed as a fraction in [0, 1].
+        0 = at the 50-bar low, 1 = at the 50-bar high.
+
+    vol_regime
+        Current ATR relative to its own 20-bar rolling mean, clipped to
+        [0, 3] and rescaled to [0, 1].  Values below ~0.33 indicate a
+        quiet/choppy market; values above ~0.67 indicate elevated volatility.
+
+    Requires ``add_indicators`` to have been called first (needs atr_14).
+    """
+    if "atr_14" not in df.columns:
+        raise ValueError("add_v2_features requires atr_14 — call add_indicators first.")
+
+    roll_high = df["close"].rolling(50, min_periods=1).max()
+    roll_low  = df["close"].rolling(50, min_periods=1).min()
+    df["price_pos_50"] = (df["close"] - roll_low) / (roll_high - roll_low + 1e-9)
+
+    mean_atr = df["atr_14"].rolling(20, min_periods=1).mean()
+    df["vol_regime"] = (df["atr_14"] / (mean_atr + 1e-9)).clip(0.0, 3.0) / 3.0
+
+    return df
+
 
 def normalise_window(window: pd.DataFrame) -> np.ndarray:
     """

@@ -87,3 +87,41 @@ ADV_SAVE_FREQ      = 50
 ADV_CHECKPOINT_PATH = f"{MODEL_DIR}/xauusd_adv_dqn.pth"
 ADV_BEST_MODEL_PATH = f"{MODEL_DIR}/xauusd_adv_dqn_best.pth"
 ADV_LOG_PATH        = f"{LOG_DIR}/advanced_training.csv"
+
+# ── V2: CNN-LSTM DDQN + PER (hybrid self-learning agent) ─────────────────────
+# Windows: raw candle counts fed into each CNN-LSTM branch
+V2_WINDOW_1H   = 100        # 1H candles per observation
+V2_WINDOW_4H   = 50         # 4H candles per observation
+V2_WINDOW_1D   = 20         # 1D candles per observation
+V2_N_FEAT      = 8          # OHLCV + ATR + price_pos_50 + vol_regime
+V2_HIDDEN_DIM  = 256
+V2_EPISODE_STEPS = 1500     # 1H bars per training episode (random window)
+
+# Dynamic SL/TP using ATR
+V2_SL_ATR_MULT         = 1.5          # SL = 1.5 × ATR
+V2_TP_ATR_MULTS        = [2.0, 3.0]   # TP options: 2× or 3× ATR
+V2_ENTRY_OFFSETS_ATR   = [0.5, 1.0]   # entry = price ± k × ATR
+
+# Reward shaping knobs
+V2_QUICK_SL_BARS       = 3            # SL within this many bars → extra penalty
+V2_QUICK_SL_PENALTY    = 0.5          # extra penalty magnitude
+V2_OVERTRADE_PENALTY   = 0.02         # trying to place when at max orders
+V2_CHOPPY_HOLD_REWARD  = 0.005        # per-step reward for flat book in quiet market
+V2_CHOPPY_REGIME_THR   = 0.33         # vol_regime below this → "choppy"
+
+# Agent / training
+V2_EPSILON_DECAY   = 0.9980           # ε: 1.0 → 0.05 ≈ 1 500 episodes
+V2_BATCH_SIZE      = 64
+V2_BUFFER_SIZE     = 100_000
+V2_MIN_REPLAY      = 2_000
+V2_LEARN_EVERY     = 64
+V2_EVAL_FREQ       = 25
+V2_SAVE_FREQ       = 50
+V2_PER_ALPHA       = 0.6
+V2_PER_BETA_START  = 0.4
+V2_PER_BETA_STEPS  = 300_000
+
+# Paths
+V2_CHECKPOINT_PATH = f"{MODEL_DIR}/xauusd_v2_dqn.pth"
+V2_BEST_MODEL_PATH = f"{MODEL_DIR}/xauusd_v2_dqn_best.pth"
+V2_LOG_PATH        = f"{LOG_DIR}/v2_training.csv"

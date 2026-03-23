@@ -3,6 +3,10 @@ Backtest Report — 2023-2025 Out-of-Sample Evaluation
 =====================================================
 Loads the best model and runs it on 2023-2025 data (never seen during training).
 
+Auto-detects model type from checkpoint:
+  v2_cnn_lstm  → uses TradingEnvV2 + CNNLSTMAgent (new hybrid architecture)
+  legacy       → uses AdvancedTradingEnv + DQNAgent (original architecture)
+
 Reports
 -------
   total trades, win rate, max drawdown, Sharpe ratio, profit factor,
@@ -14,8 +18,9 @@ Output
 
 Usage
 -----
-  python backtest_report.py                        # uses ADV_BEST_MODEL_PATH
+  python backtest_report.py                        # uses V2 best model path
   python backtest_report.py --model models/foo.pth # custom checkpoint
+  python backtest_report.py --legacy               # force legacy V1 env
 """
 
 import argparse
@@ -30,6 +35,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+import torch
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -41,67 +48,106 @@ logging.basicConfig(
 logger = logging.getLogger("backtest")
 
 import src.config as cfg
-
-cfg.HIDDEN_DIM = cfg.ADV_HIDDEN_DIM
-
-from src.data import load_historical_csv, add_indicators
-from src.environment_advanced import AdvancedTradingEnv, ACTION_DIM
-from src.agent import DQNAgent
+from src.data import load_historical_csv, add_indicators, add_v2_features
 
 CHART_PATH = os.path.join(cfg.LOG_DIR, "backtest_equity_curve.png")
 VAL_START  = "2023-01-01"
+V2_MODEL_TYPE = "v2_cnn_lstm"
 
 
-def _load_tf(path: str) -> pd.DataFrame:
+# ── Data loaders ──────────────────────────────────────────────────────────────
+
+def _load_tf_v2(path: str) -> pd.DataFrame:
+    df = load_historical_csv(path)
+    df = add_indicators(df)
+    df = add_v2_features(df)
+    df.dropna(inplace=True)
+    return df
+
+
+def _load_tf_v1(path: str) -> pd.DataFrame:
     df = load_historical_csv(path)
     df = add_indicators(df)
     df.dropna(inplace=True)
     return df
 
 
-def run_backtest(model_path: str = None) -> dict:
+# ── Model type detection ──────────────────────────────────────────────────────
+
+def _detect_model_type(model_path: str) -> str:
+    """Return 'v2_cnn_lstm' or 'legacy' by peeking at the checkpoint."""
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model checkpoint not found: {model_path}")
+    try:
+        ckpt = torch.load(model_path, map_location="cpu", weights_only=False)
+        return ckpt.get("model_type", "legacy")
+    except Exception:
+        return "legacy"
+
+
+# ── Main backtest logic ───────────────────────────────────────────────────────
+
+def run_backtest(model_path: str = None, force_legacy: bool = False) -> dict:
+
+    # ── Resolve model path ────────────────────────────────────────────────────
     if model_path is None:
-        model_path = cfg.ADV_BEST_MODEL_PATH
+        # Prefer V2 best model; fall back to V1 best model
+        if os.path.exists(cfg.V2_BEST_MODEL_PATH):
+            model_path = cfg.V2_BEST_MODEL_PATH
+        else:
+            model_path = cfg.ADV_BEST_MODEL_PATH
+            force_legacy = True
 
-    # ── Load data ──────────────────────────────────────────────────────────────
+    model_type = "legacy" if force_legacy else _detect_model_type(model_path)
+    is_v2      = model_type == V2_MODEL_TYPE
+
+    logger.info("Model type  : %s", "V2 CNN-LSTM" if is_v2 else "V1 legacy DQN")
+    logger.info("Model path  : %s", model_path)
+
+    # ── Load data ─────────────────────────────────────────────────────────────
     logger.info("Loading 1H data …")
-    df_1h = _load_tf(cfg.MTF_DATA_1H)
+    df_1h = _load_tf_v2(cfg.MTF_DATA_1H) if is_v2 else _load_tf_v1(cfg.MTF_DATA_1H)
     logger.info("Loading 4H data …")
-    df_4h = _load_tf(cfg.MTF_DATA_4H)
+    df_4h = _load_tf_v2(cfg.MTF_DATA_4H) if is_v2 else _load_tf_v1(cfg.MTF_DATA_4H)
     logger.info("Loading 1D data …")
-    df_1d = _load_tf(cfg.MTF_DATA_1D)
+    df_1d = _load_tf_v2(cfg.MTF_DATA_1D) if is_v2 else _load_tf_v1(cfg.MTF_DATA_1D)
 
-    # ── Locate validation window ───────────────────────────────────────────────
+    # ── Validation window ─────────────────────────────────────────────────────
     mask = df_1h.index >= VAL_START
     if not mask.any():
         raise ValueError(f"No 1H bars found on or after {VAL_START}")
 
     val_start_idx = int(np.argmax(mask.values))
-    val_end_idx   = len(df_1h) - 2          # leave one bar for done-check
+    val_end_idx   = len(df_1h) - 2
     n_val_bars    = val_end_idx - val_start_idx
 
-    logger.info(
-        "Validation window: %s → %s  (%d bars)",
-        df_1h.index[val_start_idx].date(),
-        df_1h.index[val_end_idx].date(),
-        n_val_bars,
-    )
+    logger.info("Validation  : %s → %s  (%d bars)",
+                df_1h.index[val_start_idx].date(),
+                df_1h.index[val_end_idx].date(),
+                n_val_bars)
 
-    # ── Load agent ─────────────────────────────────────────────────────────────
-    env     = AdvancedTradingEnv(df_1h, df_4h, df_1d)
-    agent   = DQNAgent(state_dim=env.obs_dim, action_dim=ACTION_DIM)
+    # ── Build env + agent ─────────────────────────────────────────────────────
+    if is_v2:
+        from src.environment_v2 import TradingEnvV2, V2_ACTION_DIM
+        from src.agent_cnn_lstm import CNNLSTMAgent
+        env   = TradingEnvV2(df_1h, df_4h, df_1d)
+        agent = CNNLSTMAgent(action_dim=V2_ACTION_DIM)
+    else:
+        # Legacy V1 path
+        cfg.HIDDEN_DIM = cfg.ADV_HIDDEN_DIM
+        from src.environment_advanced import AdvancedTradingEnv, ACTION_DIM
+        from src.agent import DQNAgent
+        env   = AdvancedTradingEnv(df_1h, df_4h, df_1d)
+        agent = DQNAgent(state_dim=env.obs_dim, action_dim=ACTION_DIM)
 
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Model checkpoint not found: {model_path}")
     agent.load(model_path)
-    logger.info("Loaded model from %s  (episode %d, ε=%.4f)",
-                model_path, agent.episode, agent.epsilon)
+    logger.info("Loaded model  (episode %d, ε=%.4f)", agent.episode, agent.epsilon)
 
-    # ── Run greedy episode ─────────────────────────────────────────────────────
+    # ── Run greedy episode ────────────────────────────────────────────────────
     obs = env.reset(start_step=val_start_idx, max_steps=n_val_bars)
 
-    equity_curve  = [cfg.INITIAL_BALANCE]
-    step_indices  = [val_start_idx]
+    equity_curve = [cfg.INITIAL_BALANCE]
+    step_indices = [val_start_idx]
 
     while True:
         action             = agent.select_action(obs, greedy=True)
@@ -114,16 +160,14 @@ def run_backtest(model_path: str = None) -> dict:
     trades  = env.trade_log
     summary = env.trade_summary()
 
-    # ── Metrics ────────────────────────────────────────────────────────────────
+    # ── Metrics ───────────────────────────────────────────────────────────────
     eq  = np.array(equity_curve, dtype=float)
     ret = np.diff(eq) / (eq[:-1] + 1e-9)
 
-    # Max drawdown
-    peak    = np.maximum.accumulate(eq)
-    dd      = (eq - peak) / (peak + 1e-9)
-    max_dd  = float(dd.min())
+    peak   = np.maximum.accumulate(eq)
+    dd     = (eq - peak) / (peak + 1e-9)
+    max_dd = float(dd.min())
 
-    # Annualised Sharpe (8 760 hourly periods per year)
     sharpe = (
         float(ret.mean() / ret.std() * np.sqrt(8_760))
         if len(ret) > 1 and ret.std() > 1e-12
@@ -142,10 +186,11 @@ def run_backtest(model_path: str = None) -> dict:
         key = df_1h.index[idx].strftime("%Y-%m")
         monthly[key] = monthly.get(key, 0.0) + t["pnl"]
 
-    # ── Print report ───────────────────────────────────────────────────────────
+    # ── Print report ──────────────────────────────────────────────────────────
+    arch_tag = "V2 CNN-LSTM DDQN+PER" if is_v2 else "V1 Legacy DQN"
     SEP = "=" * 64
     print(f"\n{SEP}")
-    print("  BACKTEST REPORT — 2023-2025 OUT-OF-SAMPLE")
+    print(f"  BACKTEST REPORT — 2023-2025 OUT-OF-SAMPLE  [{arch_tag}]")
     print(SEP)
     print(f"  Model          : {model_path}")
     print(f"  Period         : {df_1h.index[val_start_idx].date()} → "
@@ -176,15 +221,14 @@ def run_backtest(model_path: str = None) -> dict:
 
     print(SEP)
 
-    # ── Save equity curve chart ────────────────────────────────────────────────
+    # ── Save equity curve chart ───────────────────────────────────────────────
     os.makedirs(cfg.LOG_DIR, exist_ok=True)
-
     timestamps = [df_1h.index[min(i, len(df_1h) - 1)] for i in step_indices]
-    fig, axes  = plt.subplots(
+
+    fig, axes = plt.subplots(
         2, 1, figsize=(15, 8), sharex=True,
         gridspec_kw={"height_ratios": [3, 1]},
     )
-
     ax1 = axes[0]
     ax1.plot(timestamps, eq, color="#2196F3", linewidth=0.9, label="Equity")
     ax1.fill_between(timestamps, cfg.INITIAL_BALANCE, eq,
@@ -197,9 +241,9 @@ def run_backtest(model_path: str = None) -> dict:
                 linewidth=0.8, label=f"Start ${cfg.INITIAL_BALANCE:,}")
     ax1.set_ylabel("Equity (USD)")
     ax1.set_title(
-        f"XAUUSD Advanced Agent — Out-of-Sample Backtest 2023-2025\n"
-        f"Trades: {summary.get('total_trades', 0)}  |  "
-        f"Win Rate: {summary.get('win_rate', 0):.1%}  |  "
+        f"XAUUSD {arch_tag} — Out-of-Sample Backtest 2023-2025\n"
+        f"Trades: {summary.get('total_trades',0)}  |  "
+        f"Win Rate: {summary.get('win_rate',0):.1%}  |  "
         f"Sharpe: {sharpe:.2f}  |  "
         f"Max DD: {max_dd:.2%}  |  "
         f"PF: {pf:.2f}  |  "
@@ -241,7 +285,11 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--model", default=None,
-        help="Path to model file (default: best model from config)",
+        help="Path to model file (default: best V2 model, falls back to V1)",
+    )
+    parser.add_argument(
+        "--legacy", action="store_true",
+        help="Force the V1 legacy environment regardless of checkpoint type",
     )
     args = parser.parse_args()
-    run_backtest(args.model)
+    run_backtest(args.model, force_legacy=args.legacy)
