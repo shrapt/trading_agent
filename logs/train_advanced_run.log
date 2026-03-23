@@ -1,0 +1,29 @@
+09:36:54 INFO     train_adv: Loading 1H data …
+09:36:54 INFO     src.data: Loaded 124887 candles from multi timeframe/1H
+09:36:54 INFO     train_adv: Loading 4H data …
+09:36:54 INFO     src.data: Loaded 32876 candles from multi timeframe/4H
+09:36:54 INFO     train_adv: Loading 1D data …
+09:36:54 INFO     src.data: Loaded 5516 candles from multi timeframe/1D
+09:36:54 INFO     train_adv: 1H: 124868 bars | 4H: 32857 bars | 1D: 5497 bars
+09:36:54 INFO     train_adv: Train pool: 1H bars 0..99894 | Test: 99894..124867
+09:36:54 INFO     src.agent: DQNAgent using device: cpu
+09:36:55 INFO     train_adv: Agent | state_dim=393 | action_dim=33 | device=cpu
+09:36:55 INFO     train_adv: Benchmarking 1 episode …
+09:36:57 INFO     train_adv: Env-only: 2.1 s / 1499 steps  →  est. 17 min for 500 episodes (excl. learning)
+09:36:57 INFO     train_adv: 
+================================================================
+  ADVANCED MTF AGENT — 500 EPISODES
+================================================================
+09:36:57 INFO     train_adv: Order types : limit_buy | limit_sell | stop_buy | stop_sell
+09:36:57 INFO     train_adv: SL/TP       : immutable, set at placement
+09:36:57 INFO     train_adv: Risk/trade  : 1%% of balance
+09:36:57 INFO     train_adv: Max orders  : 3 pending + 3 open simultaneously
+09:36:57 INFO     train_adv: ================================================================
+09:36:59 INFO     train_adv: Ep    1/500 | ε=0.9940 | train[r= 13.18 pnl=  1896.0 wr=0.39 t=157 TP=61 SL=94] | test_pnl=     nan | loss=    nan | 2.0s
+09:37:09 INFO     train_adv: Ep    2/500 | ε=0.9880 | train[r= 14.92 pnl=  1886.9 wr=0.37 t=304 TP=112 SL=192] | test_pnl=     nan | loss= 0.1385 | 9.7s
+09:37:21 INFO     train_adv: Ep    3/500 | ε=0.9821 | train[r=  2.34 pnl=   471.4 wr=0.36 t=319 TP=115 SL=204] | test_pnl=     nan | loss= 0.1393 | 12.5s
+09:37:36 INFO     train_adv: Ep    4/500 | ε=0.9762 | train[r=-22.40 pnl= -1715.1 wr=0.32 t=198 TP=62 SL=133] | test_pnl=     nan | loss= 0.1133 | 14.4s
+09:37:48 INFO     train_adv: Ep    5/500 | ε=0.9704 | train[r=  3.43 pnl=   686.8 wr=0.37 t=116 TP=42 SL=73] | test_pnl=     nan | loss= 0.1264 | 12.2s
+09:38:03 INFO     train_adv: Ep    6/500 | ε=0.9645 | train[r= -0.83 pnl=   201.5 wr=0.36 t=185 TP=63 SL=119] | test_pnl=     nan | loss= 0.0991 | 14.6s
+09:38:18 INFO     train_adv: Ep    7/500 | ε=0.9587 | train[r=-53.55 pnl= -4042.3 wr=0.30 t=329 TP=100 SL=227] | test_pnl=     nan | loss= 0.1287 | 15.8s
+09:38:34 INFO     train_adv: Ep    8/500 | ε=0.9530 | train[r=  3.26 pnl=   733.1 wr=0.37 t=141 TP=51 SL=87] | test_pnl=     nan | loss= 0.1190 | 15.3s
