@@ -65,3 +65,25 @@ MTF_DATA_1D = "multi timeframe/1D"
 MTF_CHECKPOINT_PATH = f"{MODEL_DIR}/xauusd_mtf_dqn.pth"
 MTF_BEST_MODEL_PATH = f"{MODEL_DIR}/xauusd_mtf_dqn_best.pth"
 MTF_LOG_PATH        = f"{LOG_DIR}/mtf_training.csv"
+
+# ── Advanced Trading Agent (limit/stop orders, SL/TP, 1% risk) ────────────────
+ADV_ENTRY_OFFSETS  = [0.002, 0.005]    # entry distance from price: 0.2%, 0.5%
+ADV_SL_PCTS        = [0.003, 0.006]    # SL distance from entry: 0.3%, 0.6%
+ADV_TP_RATIOS      = [1.5, 2.5]        # TP = entry ± SL_dist × ratio
+ADV_RISK_PCT       = 0.01              # risk 1% of balance per trade
+ADV_MAX_LOT        = 200.0             # max oz per trade (safety cap)
+ADV_MAX_PENDING    = 3                 # max simultaneous pending orders
+ADV_MAX_OPEN       = 3                 # max simultaneous open positions
+ADV_ORDER_EXPIRY   = 24               # cancel pending after N 1H candles
+ADV_EPISODE_STEPS  = 1500             # 1H candles per episode
+ADV_HIDDEN_DIM     = 256
+ADV_LEARN_EVERY    = 64
+ADV_BATCH_SIZE     = 64
+ADV_MIN_REPLAY     = 2_000
+ADV_BUFFER_SIZE    = 100_000
+ADV_EPSILON_DECAY  = 0.9940           # reaches 0.05 in 500 episodes
+ADV_EVAL_FREQ      = 25
+ADV_SAVE_FREQ      = 50
+ADV_CHECKPOINT_PATH = f"{MODEL_DIR}/xauusd_adv_dqn.pth"
+ADV_BEST_MODEL_PATH = f"{MODEL_DIR}/xauusd_adv_dqn_best.pth"
+ADV_LOG_PATH        = f"{LOG_DIR}/advanced_training.csv"
