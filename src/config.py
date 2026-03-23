@@ -45,3 +45,23 @@ CHECKPOINT_PATH = f"{MODEL_DIR}/xauusd_dqn.pth"
 BEST_MODEL_PATH = f"{MODEL_DIR}/xauusd_dqn_best.pth"
 DATA_CACHE_PATH = f"{DATA_DIR}/xauusd_cache.csv"
 HISTORICAL_DATA_PATH = "historical data"  # real XAUUSD 1h CSV (semicolon-delimited)
+
+# ── Multi-Timeframe (MTF) ─────────────────────────────────────────────────────
+MTF_WINDOW_1H    = 20          # hourly candles in observation
+MTF_WINDOW_4H    = 10          # 4H candles in observation
+MTF_WINDOW_1D    = 5           # daily candles in observation
+# state dim = (20+10+5) × 11 features = 385  (computed in environment_mtf.py)
+MTF_EPISODE_STEPS = 1500       # 1H candles per training episode (random window)
+MTF_HIDDEN_DIM   = 128
+MTF_LEARN_EVERY  = 16
+MTF_BATCH_SIZE   = 64
+MTF_MIN_REPLAY   = 2_000
+MTF_BUFFER_SIZE  = 100_000
+MTF_EVAL_FREQ    = 25
+MTF_SAVE_FREQ    = 50
+MTF_DATA_1H = "multi timeframe/1H"
+MTF_DATA_4H = "multi timeframe/4H"
+MTF_DATA_1D = "multi timeframe/1D"
+MTF_CHECKPOINT_PATH = f"{MODEL_DIR}/xauusd_mtf_dqn.pth"
+MTF_BEST_MODEL_PATH = f"{MODEL_DIR}/xauusd_mtf_dqn_best.pth"
+MTF_LOG_PATH        = f"{LOG_DIR}/mtf_training.csv"
